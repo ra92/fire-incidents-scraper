@@ -61,34 +61,29 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       await page.goto('https://client.firenotification.com/auth/sign-in', { waitUntil: 'domcontentloaded' });
       console.log('Sign-in page loaded. Current URL:', await page.url());
 
-      // Wait for and type email
+      // Wait for and type email with delay
       console.log('Waiting for email input...');
       await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-      await page.type('input[type="email"]', EMAIL);
+      await page.type('input[type="email"]', EMAIL, { delay: 100 });
       console.log('Email entered.');
 
-      // Wait for and type password
+      // Wait for and type password with delay
       console.log('Waiting for password input...');
       await page.waitForSelector('input[type="password"]', { timeout: 20000 });
-      await page.type('input[type="password"]', PASSWORD);
+      await page.type('input[type="password"]', PASSWORD, { delay: 100 });
       console.log('Password entered.');
 
       // Click Sign In
       console.log('Clicking submit button...');
       await page.click('button[type="submit"]');
-      console.log('Submit clicked. Waiting for login confirmation...');
+      console.log('Submit clicked. Waiting for potential error or redirect...');
 
-      // Wait for the login form to disappear (indicating successful redirect)
-      await page.waitForFunction(() => !document.querySelector('input[type="email"]'), { timeout: 60000 });
-      console.log('Login successful: Login form disappeared.');
+      // Short delay for response
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // Additional delay to ensure dashboard loads
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Log current URL and check for error messages (e.g., Material-UI alert)
-      console.log('Post-login URL:', await page.url());
+      // Check for error message on login page
       const errorMsg = await page.evaluate(() => {
-        const errorEl = document.querySelector('.MuiAlert-message') || document.querySelector('[role="alert"]');
+        const errorEl = document.querySelector('.MuiAlert-message, .MuiAlert-root, [role="alert"], .error');
         return errorEl ? errorEl.textContent.trim() : 'No error message found';
       });
       console.log('Potential error message:', errorMsg);
@@ -96,6 +91,25 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       if (errorMsg !== 'No error message found') {
         throw new Error(`Login error: ${errorMsg}`);
       }
+
+      // Attempt to go to dashboard
+      console.log('Navigating to dashboard...');
+      await page.goto(LIST_URL, { waitUntil: 'domcontentloaded' });
+
+      // Wait for a dashboard indicator (avatar or pagination)
+      const avatarSelector = 'img[src="/assets/placeholders/user.png"][alt="Placeholder avatar"]';
+      const paginationSelector = 'button.MuiPaginationItem-page[aria-label="page 1"]';
+      try {
+        await Promise.race([
+          page.waitForSelector(avatarSelector, { timeout: 30000 }),
+          page.waitForSelector(paginationSelector, { timeout: 30000 })
+        ]);
+        console.log('Login successful: Dashboard indicator found.');
+      } catch (err) {
+        throw new Error('Login failed: No dashboard indicator found after navigation.');
+      }
+
+      console.log('Post-login URL:', await page.url());
     });
 
     // ---------- 2. LOAD LIST (First page only) ----------
@@ -185,7 +199,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         await contactButtonHandle.asElement().click();
         console.log('Contact button clicked.');
         // Optional delay if needed for modal/load
-        // await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         const contactResp = await page.waitForResponse(r =>
           r.url().includes(`/api/incident/${id}/contact`) && 
@@ -226,10 +240,10 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           assigned_agent: '',
           contractor: '',
           commission_pct: null,
-          owner_name: (assess.assessments?.[0]?.ownerInfo?.name + ' / ' + assess.assessments?.[0]?.lastSale?.buyer) || ownerName || null,
+          owner_name: (assess[0]?.ownerInfo?.name + ' / ' + assess[0]?.lastSale?.buyer) || ownerName || null,
           phone: phoneMatch[0] || 
-                  (contact.contactNotes?.[0]?.contact ? 
-                  contact.contactNotes[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
+                  (contact[0]?.contact ? 
+                  contact[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
           damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
           family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
           description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
@@ -259,7 +273,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     // Optional: Log page content on error
     if (page) {
       const pageContent = await page.content();
-      console.log('Page content on error:', pageContent.substring(0, 1000)); // Truncated
+      console.log('Page content on error:', pageContent.substring(0, 1000)); // Truncated for logs
     }
     // await page.screenshot({ path: 'error-screenshot.png' });
   } finally {
