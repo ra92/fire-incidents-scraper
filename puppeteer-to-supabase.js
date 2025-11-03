@@ -26,12 +26,16 @@
     });
     const page = await browser.newPage();
 
+    // Set global timeout to 60s
+    page.setDefaultNavigationTimeout(60000);
+    page.setDefaultTimeout(60000);
+
     // ---------- 1. LOGIN (Using name attributes) ----------
     console.log('Logging in...');
     await page.goto('https://client.firenotification.com/auth/sign-in');
 
     // Wait for email field
-    await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+    await page.waitForSelector('input[name="email"]', { timeout: 60000 });
     await page.type('input[name="email"]', EMAIL);
 
     // Wait for password field
@@ -41,7 +45,7 @@
     // Click Sign In
     await Promise.all([
         page.click('button[type="submit"]'),
-        page.waitForNavigation({ waitUntil: 'networkidle0' })
+        // await page.waitForSelector('input[name="submit"]', { timeout: 60000 })
     ]);
 
     // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
