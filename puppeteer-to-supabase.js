@@ -46,7 +46,7 @@
     await Promise.all([
         page.click('button[type="submit"]'),
         // await page.waitForSelector('input[name="submit"]', { timeout: 60000 })
-        await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 })
+        // await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 })
     ]);
 
     // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
