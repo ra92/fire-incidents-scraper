@@ -48,8 +48,7 @@
     console.log('Loading incident list...');
     const masterPromise = page.waitForResponse(r => 
         r.url().includes('/api/incident') && 
-        r.status() === 200 && 
-        r.request().method() === 'GET' &&
+        r.status() === 200 &&
         !r.url().includes('comments') && 
         !r.url().includes('contact')
     );
