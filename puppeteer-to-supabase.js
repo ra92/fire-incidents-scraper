@@ -7,7 +7,7 @@ const { createClient } = require('@supabase/supabase-js');
 // ==== CONFIG =========================================================
 const EMAIL          = process.env.EMAIL;
 const PASSWORD       = process.env.PSKY;
-const LIST_URL       = 'https://client.firenotification.com/?location=arizona';
+const LIST_URL       = 'https://client.firenotification.com/';
 
 const SUPABASE_URL   = process.env.SUPABASE_URL;
 const SUPABASE_KEY   = process.env.SUPABASE_KEY;
@@ -53,11 +53,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     !r.url().includes('contact')
   );
 
-  await page.goto(LIST_URL);
+
   const masterResp = await masterPromise;
   const masterJson = await masterResp.json();
   const incidents = masterJson.incidents || [];
 
+  console.log(`Found ${masterJson}`);
+  
   console.log(`Found ${incidents.length} incidents`);
 
   // ---------- 3. FETCH DETAILS & MAP TO SUPABASE SCHEMA ----------
