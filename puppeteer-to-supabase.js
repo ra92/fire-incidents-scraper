@@ -44,7 +44,8 @@
 
     // Click Sign In
     await Promise.all([
-        page.click('button[type="submit"]'),
+        await page.waitForSelector('input[type="password"]'),
+        page.click('button[type="submit"]')
         // await page.waitForSelector('input[name="submit"]', { timeout: 60000 })
         // await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 })
     ]);
@@ -53,9 +54,7 @@
     console.log('Loading incident list...');
     const masterPromise = page.waitForResponse(r => 
         r.url().includes('/api/incident') && 
-        r.status() === 200 &&
-        !r.url().includes('comments') && 
-        !r.url().includes('contact')
+        r.status() === 200
     );
 
     // await page.goto(LIST_URL);
