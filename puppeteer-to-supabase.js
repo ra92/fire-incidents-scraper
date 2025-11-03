@@ -127,7 +127,9 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       console.log('Preparing to fetch incidents from current page...');
       const masterPromise = page.waitForResponse(r => 
         r.url().includes('/api/incident') && 
-        r.status() === 200
+        r.status() === 200 &&
+        !r.url().includes('comments') && 
+        !r.url().includes('contact')
       );
 
       // Reload or trigger API if needed (assuming goto or refresh triggers it)
@@ -135,11 +137,18 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       await page.reload({ waitUntil: 'domcontentloaded' });
       console.log('Page reloaded.');
 
-      const masterResp = await masterPromise;
-      const masterJson = await masterResp.json();
-      const incidents = masterJson.incidents || [];
-      console.log(`Found ${incidents.length} incidents on this page`);
-      return incidents;
+      try {
+        const masterResp = await masterPromise;
+        console.log('Captured API URL:', masterResp.url());
+        const masterJson = await masterResp.json();
+        console.log('Master JSON:', JSON.stringify(masterJson, null, 2)); // Full JSON for debug
+        const incidents = masterJson.incidents || [];
+        console.log(`Found ${incidents.length} incidents on this page`);
+        return incidents;
+      } catch (err) {
+        console.error('Error waiting for master response:', err);
+        return [];
+      }
     }
 
     // Get first page incidents only
