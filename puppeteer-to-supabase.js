@@ -82,12 +82,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
       r.url().includes(`/api/incident/${id}/comments`)
     );
     const commentsJSON = await commentsResp.json();
-    const commentsArry = commentsJSON.comments || [];
+    const commentsArray = commentsJSON.comments || [];
     var comments = '';
     for(const cmnts of commentsArray) {
       console.log(cmnts.description)
-      comments += ('[ ' + cmnts.description + ' ]'
+      comments += ('[ ' + cmnts.description + ' ]' + '\n');
     }
+
     console.log('Full Comments: ' + comments);
 
     // 3c – contact
