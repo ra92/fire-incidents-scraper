@@ -27,25 +27,25 @@
     const page = await browser.newPage();
 
     // Set global timeout to 60s
-    page.setDefaultNavigationTimeout(60000);
-    page.setDefaultTimeout(60000);
+    // page.setDefaultNavigationTimeout(60000);
+    // page.setDefaultTimeout(60000);
 
     // ---------- 1. LOGIN (Using name attributes) ----------
     console.log('Logging in...');
     await page.goto('https://client.firenotification.com/auth/sign-in');
 
     // Wait for email field
-    await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    // await page.waitForSelector('input[type="email"]', { timeout: 60000 });
     await page.type('input[type="email"]', EMAIL);
 
     // Wait for password field
-    await page.waitForSelector('input[type="password"]');
+    // await page.waitForSelector('input[type="password"]');
     await page.type('input[type="password"]', PASSWORD);
 
     // Click Sign In
     await Promise.all([
-        await page.waitForSelector('button[type="submit"]'),
-        page.click('button[type="submit"]')
+        // await page.waitForSelector('button[type="submit"]'),
+        awaitpage.click('button[type="submit"]')
         // await page.waitForSelector('input[name="submit"]', { timeout: 60000 })
         // await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 })
     ]);
