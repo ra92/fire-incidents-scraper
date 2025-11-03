@@ -1,4 +1,4 @@
-// Version: 6
+// Version: 4
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -128,86 +128,103 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       const id = inc.IncidentId;
       console.log(`[3:DETAIL_START:${id}] Processing ${id}...`);
 
-      await withRetry(async () => {
-        await page.goto(LIST_URL + `incident?incidentId=${id}`, { waitUntil: 'domcontentloaded' });
-        const assessResp = await page.waitForResponse(r => 
-          r.url().includes(`/api/assessment/incident/${id}`) && 
-          !r.url().includes('comments') && 
-          !r.url().includes('contact')
-        );
-        const assessJSON = await assessResp.json();
-        const assess = assessJSON.assessments || [];
-        console.log('[3:DETAIL_FOUND:ASSESS] Found assessments:', assess);
-        const commentsResp = await page.waitForResponse(r => 
-          r.url().includes(`/api/incident/${id}/comments`)
-        );
-        const commentsJSON = await commentsResp.json();
-        const commentsArray = commentsJSON.comments || [];
-        let comments = '';
-        for (const cmnts of commentsArray) {
-          comments += (`[ ${cmnts.description} ]\n`);
-        }
-        console.log('[3:DETAIL_FOUND:COMMENTS] Found comments:', comments);
-
-        const contactButtonHandle = await page.evaluateHandle(() => {
-          const buttons = Array.from(document.querySelectorAll('button'));
-          return buttons.find(btn => 
-            btn.textContent.includes('Contact')
+      try {
+        await withRetry(async () => {
+          await page.goto(LIST_URL + `incident?incidentId=${id}`, { waitUntil: 'domcontentloaded' });
+          const assessResp = await page.waitForResponse(r => 
+            r.url().includes(`/api/assessment/incident/${id}`) && 
+            !r.url().includes('comments') && 
+            !r.url().includes('contact')
           );
+          const assessJSON = await assessResp.json();
+          const assess = assessJSON.assessments || [];
+
+          const commentsResp = await page.waitForResponse(r => 
+            r.url().includes(`/api/incident/${id}/comments`)
+          );
+          const commentsJSON = await commentsResp.json();
+          const commentsArray = commentsJSON.comments || [];
+          let comments = '';
+          for (const cmnts of commentsArray) {
+            comments += (`[ ${cmnts.description} ]\n`);
+          }
+
+          const contactButtonHandle = await page.evaluateHandle(() => {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            return buttons.find(btn => 
+              btn.textContent.includes('Contact') && 
+              btn.querySelector('.MuiBadge-badge')
+            );
+          });
+
+          if (!contactButtonHandle.asElement()) {
+            throw new Error('Contact button not found');
+          }
+          await contactButtonHandle.asElement().click();
+
+          // Wait for modal to appear (adjust selector if needed, e.g., a dialog class)
+          try {
+            await page.waitForSelector('.MuiDialog-root, .modal-class', { timeout: 5000 }); // Placeholder for modal
+          } catch {
+            console.warn('[3:DETAIL_WARN] Modal not detected; proceeding anyway.');
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          let contact = [];
+          try {
+            const contactResp = await page.waitForResponse(r =>
+              r.url().includes(`/api/incident/${id}/contact`) && 
+              r.status() === 200 &&
+              r.request().method() === 'GET'
+            , { timeout: 120000 });
+            const contactJSON = await contactResp.json();
+            contact = contactJSON.contactNotes || [];
+          } catch (err) {
+            console.warn(`[3:DETAIL_WARN:${id}] Contact API timeout; using empty contact.`);
+          }
+
+          const addrParts = (inc.addressRaw || '').split(', ');
+          const city = inc.cityName || addrParts[1] || '';
+          const zip = addrParts[2] ? addrParts[2].split(' ')[1] : '';
+
+          const phoneMatch = (inc.searchableContent || '').match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g) || [];
+          const ownerMatch = (inc.searchableContent || '').match(/\[CONTACT\][^/]+\/([^/]+)/i);
+          const ownerName = ownerMatch ? ownerMatch[1].trim() : '';
+
+          rows.push({
+            incident_id: id,
+            preset_label: inc.presetLabel || null,
+            incident_type: inc.incidentTypeName || null,
+            structure_type: inc.structureTypeName || null,
+            address: inc.addressRaw || null,
+            street_address: inc.streetAddress || null,
+            city,
+            state: 'AZ',
+            zipcode: zip,
+            county: inc.countyShortName || null,
+            latitude: inc.latitude ? inc.latitude.toString() : null,
+            longitude: inc.longitude ? inc.longitude.toString() : null,
+            reported_at: inc.createdAt || null,
+            sla_due: null,
+            ai_score: inc.commentCount > 3 ? 95 : (inc.commentCount > 1 ? 80 : 60),
+            assigned_agent: '',
+            contractor: '',
+            commission_pct: null,
+            owner_name: (assess[0]?.ownerInfo?.name + ' / ' + assess[0]?.lastSale?.buyer) || ownerName || null,
+            phone: phoneMatch[0] || 
+                    (contact[0]?.contact ? 
+                    contact[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
+            damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
+            family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
+            description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
+            stage: 'New Alert'
+          });
         });
-        console.log('[3:DETAIL_FOUND:CONTACT_BUTTON] Found contact button:', contactButtonHandle);
-        if (!contactButtonHandle.asElement()) {
-          throw new Error('Contact button not found');
-        }
-        await contactButtonHandle.asElement().click();
-
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Increased delay
-
-        const contactResp = await page.waitForResponse(r =>
-          r.url().includes(`/api/incident/${id}/contact`) && 
-          r.status() === 304 &&
-          r.request().method() === 'GET'
-        , { timeout: 120000 }); // Increased timeout
-        const contactJSON = await contactResp.json();
-        const contact = contactJSON.contactNotes || [];
-
-        const addrParts = (inc.addressRaw || '').split(', ');
-        const city = inc.cityName || addrParts[1] || '';
-        const zip = addrParts[2] ? addrParts[2].split(' ')[1] : '';
-
-        const phoneMatch = (inc.searchableContent || '').match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g) || [];
-        const ownerMatch = (inc.searchableContent || '').match(/\[CONTACT\][^/]+\/([^/]+)/i);
-        const ownerName = ownerMatch ? ownerMatch[1].trim() : '';
-
-        rows.push({
-          incident_id: id,
-          preset_label: inc.presetLabel || null,
-          incident_type: inc.incidentTypeName || null,
-          structure_type: inc.structureTypeName || null,
-          address: inc.addressRaw || null,
-          street_address: inc.streetAddress || null,
-          city,
-          state: 'AZ',
-          zipcode: zip,
-          county: inc.countyShortName || null,
-          latitude: inc.latitude ? inc.latitude.toString() : null,
-          longitude: inc.longitude ? inc.longitude.toString() : null,
-          reported_at: inc.createdAt || null,
-          sla_due: null,
-          ai_score: inc.commentCount > 3 ? 95 : (inc.commentCount > 1 ? 80 : 60),
-          assigned_agent: '',
-          contractor: '',
-          commission_pct: null,
-          owner_name: (assess[0]?.ownerInfo?.name + ' / ' + assess[0]?.lastSale?.buyer) || ownerName || null,
-          phone: phoneMatch[0] || 
-                  (contact[0]?.contact ? 
-                  contact[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
-          damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
-          family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
-          description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
-          stage: 'New Alert'
-        });
-      });
+      } catch (detailErr) {
+        console.error(`[3:DETAIL_ERROR:${id}] Failed to process ${id}:`, detailErr);
+        // Continue to next incident
+      }
     }
 
     // ---------- 4. UPSERT TO SUPABASE ----------
