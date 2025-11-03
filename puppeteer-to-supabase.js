@@ -35,12 +35,12 @@
     await page.goto('https://client.firenotification.com/auth/sign-in');
 
     // Wait for email field
-    await page.waitForSelector('input[name="email"]', { timeout: 60000 });
-    await page.type('input[name="email"]', EMAIL);
+    await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    await page.type('input[type="email"]', EMAIL);
 
     // Wait for password field
-    await page.waitForSelector('input[name="password"]');
-    await page.type('input[name="password"]', PASSWORD);
+    await page.waitForSelector('input[type="password"]');
+    await page.type('input[type="password"]', PASSWORD);
 
     // Click Sign In
     await Promise.all([
@@ -57,7 +57,7 @@
         !r.url().includes('contact')
     );
 
-    await page.goto(LIST_URL);
+    // await page.goto(LIST_URL);
     const masterResp = await masterPromise;
     const masterJson = await masterResp.json();
     const incidents = masterJson.incidents || [];
