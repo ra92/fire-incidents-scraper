@@ -41,7 +41,7 @@
     // Click Sign In
     await Promise.all([
         page.click('button[type="submit"]'),
-        page.waitForNavigation({ waitUntil: 'networkidle0' })
+        await new Promise(resolve => setTimeout(resolve, 1000))
     ]);
 
     // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
@@ -107,7 +107,7 @@
             throw new Error('Contact button not found');
           }
           await contactButton.asElement().click();
-          await page.waitForTimeout(1000);
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           const contactResp = await page.waitForResponse(r =>
             r.url().includes(`/api/incident/${id}/contact`) && 
