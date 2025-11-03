@@ -1,4 +1,3 @@
-
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -117,12 +116,6 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     console.log('Loading incident list...');
     const allIncidents = [];
 
-    // await withRetry(async () => {
-    //   console.log('Navigating to list URL...');
-    //   await page.goto(LIST_URL, { waitUntil: 'domcontentloaded' });
-    //   console.log('List page loaded. Current URL:', await page.url());
-    // });
-
     // Function to fetch incidents from current page
     async function fetchCurrentPageIncidents() {
       console.log('Preparing to fetch incidents from current page...');
@@ -132,11 +125,6 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         !r.url().includes('comments') && 
         !r.url().includes('contact')
       );
-
-      // Reload or trigger API if needed (assuming goto or refresh triggers it)
-      // console.log('Reloading page to trigger API...');
-      // await page.reload({ waitUntil: 'domcontentloaded' });
-      // console.log('Page loaded.');
 
       try {
         const masterResp = await masterPromise;
