@@ -94,9 +94,18 @@
         // 3c – contact
         // Contact button
         // Find button with "Contact" text
-        const contactButton = await page.$x('//button[.//span[text()="Contact"]]');
-        if (!contactButton.length) throw new Error('Contact button not found');
-        await contactButton[0].click();
+        const contactButton = await page.evaluateHandle(() => {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            return buttons.find(btn => 
+              btn.textContent.includes('Contact') && 
+              btn.querySelector('.MuiBadge-badge')
+            );
+          });
+          
+          if (!contactButton.asElement()) {
+            throw new Error('Contact button not found');
+          }
+          await contactButton.asElement().click();
 
         // Wait for contact API to load
         const contactResp = await page.waitForResponse(r =>
