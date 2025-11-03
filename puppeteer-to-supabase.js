@@ -48,9 +48,9 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
   });
   const page = await browser.newPage();
 
-  // Set global timeouts to 90s (increased from 60s)
-  page.setDefaultNavigationTimeout(90000);
-  page.setDefaultTimeout(90000);
+  // Set global timeouts to 60s
+  page.setDefaultNavigationTimeout(60000);
+  page.setDefaultTimeout(60000);
 
   try {
     // ---------- 1. LOGIN (Using type attributes) ----------
@@ -69,22 +69,18 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       // Click Sign In
       await page.click('button[type="submit"]');
 
-      // Instead of waitForNavigation, wait for a post-login indicator
-      // Replace '.post-login-selector' with an actual selector, e.g., 'button[aria-label="page 1"]' or a dashboard header
+      // Instead of waitForNavigation (which may not trigger in SPA), wait for a post-login indicator
+      // Assuming the dashboard has the pagination button; adjust selector if needed (e.g., a header, user avatar, or list element)
       try {
-        await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 90000 });
-        console.log('Login successful: Dashboard pagination detected');
-      } catch (navErr) {
-        // Check for login error message
-        const errorMessage = await page.evaluate(() => {
-          const errorElem = document.querySelector('.error-class-or-id'); // Replace with actual error selector, e.g., '.MuiAlert-root' or textContent check
-          return errorElem ? errorElem.textContent.trim() : null;
-        });
-        if (errorMessage) {
-          throw new Error(`Login failed: ${errorMessage}`);
-        } else {
-          throw navErr; // Rethrow if no error but still timed out
+        await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 });
+        console.log('Login successful: Dashboard selector found');
+      } catch (err) {
+        // Fallback: Check if URL changed to LIST_URL
+        const currentUrl = await page.url();
+        if (currentUrl !== LIST_URL) {
+          throw new Error(`Login failed: Still on ${currentUrl} instead of ${LIST_URL}`);
         }
+        console.log('Login successful: URL changed to dashboard');
       }
     });
 
@@ -133,8 +129,8 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         const nextButton = await page.$(nextSelector);
         if (nextButton) {
           await nextButton.click();
-          // Wait for page to load (e.g., new API call or list refresh)
-          await page.waitForSelector('button.MuiPaginationItem-page.Mui-selected[aria-label="page ' + pageNum + '"]', { timeout: 30000 }); // Wait for the selected page to update
+          // Wait for page to load (e.g., new API call)
+          await page.waitForSelector('.some-incident-list-selector', { timeout: 30000 }); // Replace with a selector that indicates list refresh, e.g., a table or list class
         } else {
           throw new Error(`Page ${pageNum} button not found`);
         }
@@ -260,8 +256,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     }
   } catch (err) {
     console.error('Script failed:', err);
-    // Take screenshot for debugging
-    await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
+    // Optional: await page.screenshot({ path: 'error-screenshot.png' });
   } finally {
     await browser.close();
   }
