@@ -254,4 +254,3 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     await browser.close();
   }
 })();
-```
