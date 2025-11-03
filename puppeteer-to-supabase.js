@@ -21,15 +21,23 @@ const supabase       = createClient(SUPABASE_URL, SUPABASE_KEY);
   });
   const page = await browser.newPage();
 
-  // ---------- 1. LOGIN ----------
-  console.log('Logging in...');
-  await page.goto('https://client.firenotification.com/auth/sign-in');
-  await page.type('#\\:r16j\\:', EMAIL);      // email
-  await page.type('#\\:r16k\\:', PASSWORD);   // password
-  await Promise.all([
-    page.click('.MuiButton-root'),
-    page.waitForNavigation({ waitUntil: 'networkidle0' })
-  ]);
+// ---------- 1. LOGIN (Using name attributes) ----------
+console.log('Logging in...');
+await page.goto('https://client.firenotification.com/auth/sign-in');
+
+// Wait for email field
+await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+await page.type('input[name="email"]', EMAIL);
+
+// Wait for password field
+await page.waitForSelector('input[name="password"]');
+await page.type('input[name="password"]', PASSWORD);
+
+// Click Sign In
+await Promise.all([
+  page.click('button[type="submit"]'),
+  page.waitForNavigation({ waitUntil: 'networkidle0' })
+]);
 
   // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
   console.log('Loading incident list...');
