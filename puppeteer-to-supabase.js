@@ -41,7 +41,7 @@
     // Click Sign In
     await Promise.all([
         page.click('button[type="submit"]'),
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        page.waitForNavigation({ waitUntil: 'networkidle0' })
     ]);
 
     // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
