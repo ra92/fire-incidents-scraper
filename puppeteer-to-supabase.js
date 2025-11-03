@@ -9,9 +9,14 @@ const EMAIL          = process.env.EMAIL;
 const PASSWORD       = process.env.PSKY;
 const LIST_URL       = 'https://client.firenotification.com/?location=arizona';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const supabase       = createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL   = process.env.SUPABASE_URL;
+const SUPABASE_KEY   = process.env.SUPABASE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error('Missing SUPABASE_URL or SUPABASE_KEY environment variables');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // =====================================================================
 
 (async () => {
@@ -21,27 +26,27 @@ const supabase       = createClient(SUPABASE_URL, SUPABASE_KEY);
   });
   const page = await browser.newPage();
 
-// ---------- 1. LOGIN (Using name attributes) ----------
-console.log('Logging in...');
-await page.goto('https://client.firenotification.com/auth/sign-in');
+  // ---------- 1. LOGIN (Using name attributes) ----------
+  console.log('Logging in...');
+  await page.goto('https://client.firenotification.com/auth/sign-in');
 
-// Wait for email field
-await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-await page.type('input[name="email"]', EMAIL);
+  // Wait for email field
+  await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+  await page.type('input[name="email"]', EMAIL);
 
-// Wait for password field
-await page.waitForSelector('input[name="password"]');
-await page.type('input[name="password"]', PASSWORD);
+  // Wait for password field
+  await page.waitForSelector('input[name="password"]');
+  await page.type('input[name="password"]', PASSWORD);
 
-// Click Sign In
-await Promise.all([
-  page.click('button[type="submit"]'),
-  page.waitForNavigation({ waitUntil: 'networkidle0' })
-]);
+  // Click Sign In
+  await Promise.all([
+    page.click('button[type="submit"]'),
+    page.waitForNavigation({ waitUntil: 'networkidle0' })
+  ]);
 
   // ---------- 2. LOAD LIST & INTERCEPT MASTER API ----------
   console.log('Loading incident list...');
-  const masterPromise = page.waitForResponse(r =>
+  const masterPromise = page.waitForResponse(r => 
     r.url().includes('/api/incident') && 
     r.status() === 200 && 
     !r.url().includes('comments') && 
@@ -51,7 +56,7 @@ await Promise.all([
   await page.goto(LIST_URL);
   const masterResp = await masterPromise;
   const masterJson = await masterResp.json();
-  const incidents  = masterJson.incidents || [];
+  const incidents = masterJson.incidents || [];
 
   console.log(`Found ${incidents.length} incidents`);
 
@@ -63,7 +68,7 @@ await Promise.all([
     console.log(`  → ${id}`);
 
     // 3a – assessment / property
-    const assessResp = await page.waitForResponse(r =>
+    const assessResp = await page.waitForResponse(r => 
       r.url().includes(`/api/incident/${id}`) && 
       !r.url().includes('comments') && 
       !r.url().includes('contact')
@@ -71,13 +76,13 @@ await Promise.all([
     const assess = await assessResp.json();
 
     // 3b – comments
-    const commentsResp = await page.waitForResponse(r =>
+    const commentsResp = await page.waitForResponse(r => 
       r.url().includes(`/api/incident/${id}/comments`)
     );
     const comments = await commentsResp.json();
 
     // 3c – contact
-    const contactResp = await page.waitForResponse(r =>
+    const contactResp = await page.waitForResponse(r => 
       r.url().includes(`/api/incident/${id}/contact`)
     );
     const contact = await contactResp.json();
@@ -85,7 +90,7 @@ await Promise.all([
     // ----- Parse address parts -----
     const addrParts = (inc.addressRaw || '').split(', ');
     const city = inc.cityName || addrParts[1] || '';
-    const zip  = addrParts[2]?.split(' ')[1] || '';
+    const zip = addrParts[2] ? addrParts[2].split(' ')[1] : '';
 
     // ----- Extract phone & owner from searchableContent -----
     const phoneMatch = (inc.searchableContent || '').match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g) || [];
@@ -104,32 +109,36 @@ await Promise.all([
       state: 'AZ',
       zipcode: zip,
       county: inc.countyShortName || null,
-      latitude: inc.latitude?.toString() || null,
-      longitude: inc.longitude?.toString() || null,
+      latitude: inc.latitude ? inc.latitude.toString() : null,
+      longitude: inc.longitude ? inc.longitude.toString() : null,
       reported_at: inc.createdAt || null,
-      sla_due: null,
-      ai_score: inc.commentCount > 3 ? 95 : inc.commentCount > 1 ? 80 : 60,
+      sla_due: null, // not in API – set later
+      ai_score: inc.commentCount > 3 ? 95 : (inc.commentCount > 1 ? 80 : 60),
       assigned_agent: '',
       contractor: '',
       commission_pct: null,
       owner_name: ownerName || (assess.assessments?.[0]?.ownerInfo?.name) || null,
       phone: phoneMatch[0] || 
-             (contact.contactNotes?.[0]?.contact?.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0]) || null,
-      damage_description: inc.searchableContent?.substring(0, 300) || null,
+             (contact.contactNotes?.[0]?.contact ? 
+              contact.contactNotes[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
+      damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
       family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
-      description: inc.searchableContent?.substring(0, 500) || null,
+      description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
       stage: 'New Alert'
     });
   }
 
   // ---------- 4. UPSERT TO SUPABASE ----------
-  if (rows.length) {
+  if (rows.length > 0) {
     const { error } = await supabase
       .from('incidents')
       .upsert(rows, { onConflict: 'incident_id' });
 
-    if (error) console.error('Supabase error:', error);
-    else console.log(`Upserted ${rows.length} rows`);
+    if (error) {
+      console.error('Supabase error:', error);
+    } else {
+      console.log(`Upserted ${rows.length} rows`);
+    }
   }
 
   await browser.close();
