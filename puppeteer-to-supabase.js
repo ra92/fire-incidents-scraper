@@ -93,7 +93,10 @@
 
         // 3c – contact
         // Contact button
-        await page.click('button >> text=Contact');
+        // Find button with "Contact" text
+        const contactButton = await page.$x('//button[.//span[text()="Contact"]]');
+        if (!contactButton.length) throw new Error('Contact button not found');
+        await contactButton[0].click();
 
         // Wait for contact API to load
         const contactResp = await page.waitForResponse(r =>
