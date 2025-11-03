@@ -53,13 +53,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     !r.url().includes('contact')
   );
 
-
+  await page.goto(LIST_URL);
   const masterResp = await masterPromise;
   const masterJson = await masterResp.json();
   const incidents = masterJson.incidents || [];
 
   console.log(`Found ${masterJson}`);
-  
   console.log(`Found ${incidents.length} incidents`);
 
   // ---------- 3. FETCH DETAILS & MAP TO SUPABASE SCHEMA ----------
@@ -70,6 +69,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log(`  → ${id}`);
 
     // 3a – assessment / property
+    await page.goto(LIST_URL + `incident?incidentId=${id}`);
     const assessResp = await page.waitForResponse(r => 
       r.url().includes(`/api/incident/${id}`) && 
       !r.url().includes('comments') && 
@@ -81,7 +81,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     const commentsResp = await page.waitForResponse(r => 
       r.url().includes(`/api/incident/${id}/comments`)
     );
-    const comments = await commentsResp.json();
+    const commentsJSON = await commentsResp.json();
+    const commentsArry = commentsJSON.comments || [];
+    var comments = '';
+    for(const cmnts of commentsArray) {
+      console.log(cmnts.description)
+      comments += ('[ ' + cmnts.description + ' ]'
+    }
+    console.log('Full Comments: ' + comments);
 
     // 3c – contact
     const contactResp = await page.waitForResponse(r => 
