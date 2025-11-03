@@ -56,32 +56,34 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     // ---------- 1. LOGIN (Using type attributes) ----------
     console.log('Logging in...');
     await withRetry(async () => {
+      console.log('Navigating to sign-in page...');
       await page.goto('https://client.firenotification.com/auth/sign-in', { waitUntil: 'domcontentloaded' });
+      console.log('Sign-in page loaded. Current URL:', await page.url());
 
       // Wait for and type email
+      console.log('Waiting for email input...');
       await page.waitForSelector('input[type="email"]', { timeout: 20000 });
       await page.type('input[type="email"]', EMAIL);
+      console.log('Email entered.');
 
       // Wait for and type password
+      console.log('Waiting for password input...');
       await page.waitForSelector('input[type="password"]', { timeout: 20000 });
       await page.type('input[type="password"]', PASSWORD);
+      console.log('Password entered.');
 
       // Click Sign In
+      console.log('Clicking submit button...');
       await page.click('button[type="submit"]');
+      console.log('Submit clicked. Waiting for login confirmation...');
 
-      // Instead of waitForNavigation (which may not trigger in SPA), wait for a post-login indicator
-      // Assuming the dashboard has the pagination button; adjust selector if needed (e.g., a header, user avatar, or list element)
-      try {
-        await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 60000 });
-        console.log('Login successful: Dashboard selector found');
-      } catch (err) {
-        // Fallback: Check if URL changed to LIST_URL
-        const currentUrl = await page.url();
-        if (currentUrl !== LIST_URL) {
-          throw new Error(`Login failed: Still on ${currentUrl} instead of ${LIST_URL}`);
-        }
-        console.log('Login successful: URL changed to dashboard');
-      }
+      // Wait for the avatar image to confirm login (post-login indicator)
+      const avatarSelector = 'img[src="/assets/placeholders/user.png"][alt="Placeholder avatar"]';
+      await page.waitForSelector(avatarSelector, { timeout: 60000 });
+      console.log('Login successful: Avatar selector found.');
+
+      // Additional check: Log current URL after login
+      console.log('Post-login URL:', await page.url());
     });
 
     // ---------- 2. LOAD LIST & HANDLE PAGINATION ----------
@@ -89,18 +91,23 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     const allIncidents = [];
 
     await withRetry(async () => {
+      console.log('Navigating to list URL...');
       await page.goto(LIST_URL, { waitUntil: 'domcontentloaded' });
+      console.log('List page loaded. Current URL:', await page.url());
     });
 
     // Function to fetch incidents from current page
     async function fetchCurrentPageIncidents() {
+      console.log('Preparing to fetch incidents from current page...');
       const masterPromise = page.waitForResponse(r => 
         r.url().includes('/api/incident') && 
         r.status() === 200
       );
 
       // Reload or trigger API if needed (assuming goto or refresh triggers it)
+      console.log('Reloading page to trigger API...');
       await page.reload({ waitUntil: 'domcontentloaded' });
+      console.log('Page reloaded.');
 
       const masterResp = await masterPromise;
       const masterJson = await masterResp.json();
@@ -114,6 +121,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     allIncidents.push(...currentIncidents);
 
     // Determine total pages (evaluate pagination)
+    console.log('Evaluating total pages...');
     const totalPages = await page.evaluate(() => {
       const pageItems = document.querySelectorAll('.MuiPaginationItem-page');
       return pageItems.length; // Assumes pages are numbered 1 to N without ellipsis
@@ -123,14 +131,17 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     // Loop through pages 2 to totalPages
     for (let pageNum = 2; pageNum <= totalPages; pageNum++) {
       await withRetry(async () => {
+        console.log(`Switching to page ${pageNum}...`);
         // Target and click the next page button
         const nextSelector = `button.MuiPaginationItem-page[aria-label="page ${pageNum}"]`;
         await page.waitForSelector(nextSelector, { timeout: 20000 });
         const nextButton = await page.$(nextSelector);
         if (nextButton) {
           await nextButton.click();
+          console.log(`Clicked page ${pageNum} button.`);
           // Wait for page to load (e.g., new API call)
           await page.waitForSelector('.some-incident-list-selector', { timeout: 30000 }); // Replace with a selector that indicates list refresh, e.g., a table or list class
+          console.log(`Page ${pageNum} loaded.`);
         } else {
           throw new Error(`Page ${pageNum} button not found`);
         }
@@ -148,11 +159,13 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
     for (const inc of allIncidents) {
       const id = inc.IncidentId;
-      console.log(`  → ${id}`);
+      console.log(`Processing incident → ${id}`);
 
       await withRetry(async () => {
         // 3a – assessment / property
+        console.log(`Navigating to incident detail: ${id}...`);
         await page.goto(LIST_URL + `incident?incidentId=${id}`, { waitUntil: 'domcontentloaded' });
+        console.log('Detail page loaded.');
         const assessResp = await page.waitForResponse(r => 
           r.url().includes(`/api/assessment/incident/${id}`) && 
           !r.url().includes('comments') && 
@@ -160,6 +173,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         );
         const assessJSON = await assessResp.json();
         const assess = assessJSON.assessments || [];
+        console.log('Assessment data fetched.');
 
         // 3b – comments
         const commentsResp = await page.waitForResponse(r => 
@@ -176,6 +190,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
         // 3c – contact
         // Find and click Contact button
+        console.log('Finding Contact button...');
         const contactButtonHandle = await page.evaluateHandle(() => {
           const buttons = Array.from(document.querySelectorAll('button'));
           return buttons.find(btn => 
@@ -184,80 +199,3 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           );
         });
 
-        if (!contactButtonHandle.asElement()) {
-          throw new Error('Contact button not found');
-        }
-        await contactButtonHandle.asElement().click();
-        // Optional delay if needed for modal/load
-        // await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const contactResp = await page.waitForResponse(r =>
-          r.url().includes(`/api/incident/${id}/contact`) && 
-          r.status() === 200 &&
-          r.request().method() === 'GET'
-        );
-        const contactJSON = await contactResp.json();
-        const contact = contactJSON.contactNotes || [];
-        console.log('Contact: ' + contact);
-
-        // ----- Parse address parts -----
-        const addrParts = (inc.addressRaw || '').split(', ');
-        const city = inc.cityName || addrParts[1] || '';
-        const zip = addrParts[2] ? addrParts[2].split(' ')[1] : '';
-
-        // ----- Extract phone & owner from searchableContent -----
-        const phoneMatch = (inc.searchableContent || '').match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g) || [];
-        const ownerMatch = (inc.searchableContent || '').match(/\[CONTACT\][^/]+\/([^/]+)/i);
-        const ownerName = ownerMatch ? ownerMatch[1].trim() : '';
-
-        // ----- Build row matching your Supabase schema -----
-        rows.push({
-          incident_id: id,
-          preset_label: inc.presetLabel || null,
-          incident_type: inc.incidentTypeName || null,
-          structure_type: inc.structureTypeName || null,
-          address: inc.addressRaw || null,
-          street_address: inc.streetAddress || null,
-          city,
-          state: 'AZ',
-          zipcode: zip,
-          county: inc.countyShortName || null,
-          latitude: inc.latitude ? inc.latitude.toString() : null,
-          longitude: inc.longitude ? inc.longitude.toString() : null,
-          reported_at: inc.createdAt || null,
-          sla_due: null, // not in API – set later
-          ai_score: inc.commentCount > 3 ? 95 : (inc.commentCount > 1 ? 80 : 60),
-          assigned_agent: '',
-          contractor: '',
-          commission_pct: null,
-          owner_name: (assess.assessments?.[0]?.ownerInfo?.name + ' / ' + assess.assessments?.[0]?.lastSale?.buyer) || ownerName || null,
-          phone: phoneMatch[0] || 
-                  (contact.contactNotes?.[0]?.contact ? 
-                  contact.contactNotes[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
-          damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
-          family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
-          description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
-          stage: 'New Alert'
-        });
-      });
-    }
-
-    // ---------- 4. UPSERT TO SUPABASE ----------
-    if (rows.length > 0) {
-      const { error } = await supabase
-        .from('incidents')
-        .upsert(rows, { onConflict: 'incident_id' });
-
-      if (error) {
-        console.error('Supabase error:', error);
-      } else {
-        console.log(`Upserted ${rows.length} rows`);
-      }
-    }
-  } catch (err) {
-    console.error('Script failed:', err);
-    // Optional: await page.screenshot({ path: 'error-screenshot.png' });
-  } finally {
-    await browser.close();
-  }
-})();
