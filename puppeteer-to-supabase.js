@@ -1,4 +1,4 @@
-// Version: 4
+// Version: 5
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -147,15 +147,16 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         for (const cmnts of commentsArray) {
           comments += (`[ ${cmnts.description} ]\n`);
         }
+        console.log('[3:DETAIL_FOUND:COMMENTS] Found comments:', comments);
 
         const contactButtonHandle = await page.evaluateHandle(() => {
           const buttons = Array.from(document.querySelectorAll('button'));
           return buttons.find(btn => 
             btn.textContent.includes('Contact') && 
-            btn.querySelector('.MuiBadge-badge')
+            btn.querySelector('.MuiBadge-root')
           );
         });
-
+        console.log('[3:DETAIL_FOUND:CONTACT_BUTTON] Found contact button:', contactButtonHandle);
         if (!contactButtonHandle.asElement()) {
           throw new Error('Contact button not found');
         }
