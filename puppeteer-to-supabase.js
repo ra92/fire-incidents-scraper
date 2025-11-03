@@ -48,9 +48,9 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
   });
   const page = await browser.newPage();
 
-  // Set global timeouts to 60s
-  page.setDefaultNavigationTimeout(60000);
-  page.setDefaultTimeout(60000);
+  // Set global timeouts to 90s (increased from 60s)
+  page.setDefaultNavigationTimeout(90000);
+  page.setDefaultTimeout(90000);
 
   try {
     // ---------- 1. LOGIN (Using type attributes) ----------
@@ -66,9 +66,26 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       await page.waitForSelector('input[type="password"]', { timeout: 20000 });
       await page.type('input[type="password"]', PASSWORD);
 
-      // Click Sign In and wait for navigation
+      // Click Sign In
       await page.click('button[type="submit"]');
-      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 });
+
+      // Instead of waitForNavigation, wait for a post-login indicator
+      // Replace '.post-login-selector' with an actual selector, e.g., 'button[aria-label="page 1"]' or a dashboard header
+      try {
+        await page.waitForSelector('button.MuiPaginationItem-page[aria-label="page 1"]', { timeout: 90000 });
+        console.log('Login successful: Dashboard pagination detected');
+      } catch (navErr) {
+        // Check for login error message
+        const errorMessage = await page.evaluate(() => {
+          const errorElem = document.querySelector('.error-class-or-id'); // Replace with actual error selector, e.g., '.MuiAlert-root' or textContent check
+          return errorElem ? errorElem.textContent.trim() : null;
+        });
+        if (errorMessage) {
+          throw new Error(`Login failed: ${errorMessage}`);
+        } else {
+          throw navErr; // Rethrow if no error but still timed out
+        }
+      }
     });
 
     // ---------- 2. LOAD LIST & HANDLE PAGINATION ----------
@@ -116,8 +133,8 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         const nextButton = await page.$(nextSelector);
         if (nextButton) {
           await nextButton.click();
-          // Wait for page to load (e.g., new API call)
-          await page.waitForSelector('.some-incident-list-selector', { timeout: 30000 }); // Replace with a selector that indicates list refresh, e.g., a table or list class
+          // Wait for page to load (e.g., new API call or list refresh)
+          await page.waitForSelector('button.MuiPaginationItem-page.Mui-selected[aria-label="page ' + pageNum + '"]', { timeout: 30000 }); // Wait for the selected page to update
         } else {
           throw new Error(`Page ${pageNum} button not found`);
         }
@@ -243,7 +260,8 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     }
   } catch (err) {
     console.error('Script failed:', err);
-    // Optional: await page.screenshot({ path: 'error-screenshot.png' });
+    // Take screenshot for debugging
+    await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
   } finally {
     await browser.close();
   }
