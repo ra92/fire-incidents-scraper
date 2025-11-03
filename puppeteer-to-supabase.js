@@ -5,12 +5,12 @@ const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
 
 // ==== CONFIG =========================================================
-const EMAIL          = 'rob@emberhouseproductions.com';
-const PASSWORD       = 'R0b!Ember';
+const EMAIL          = process.env.EMAIL;
+const PASSWORD       = process.env.PSKY;
 const LIST_URL       = 'https://client.firenotification.com/?location=arizona';
 
-const SUPABASE_URL   = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY   = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase       = createClient(SUPABASE_URL, SUPABASE_KEY);
 // =====================================================================
 
