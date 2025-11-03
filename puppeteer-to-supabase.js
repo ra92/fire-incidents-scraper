@@ -1,4 +1,5 @@
-// Version: 4
+```javascript
+// Version: 5
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -138,6 +139,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           );
           const assessJSON = await assessResp.json();
           const assess = assessJSON.assessments || [];
+          console.log('[3:DETAIL_FOUND:ASSESS] Found assessments:', assess.length);
 
           const commentsResp = await page.waitForResponse(r => 
             r.url().includes(`/api/incident/${id}/comments`)
@@ -148,25 +150,25 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           for (const cmnts of commentsArray) {
             comments += (`[ ${cmnts.description} ]\n`);
           }
+          console.log('[3:DETAIL_FOUND:COMMENTS] Found comments:', commentsArray.length);
 
           const contactButtonHandle = await page.evaluateHandle(() => {
             const buttons = Array.from(document.querySelectorAll('button'));
             return buttons.find(btn => 
-              btn.textContent.includes('Contact') && 
-              btn.querySelector('.MuiBadge-badge')
+              btn.textContent.includes('Contact')
             );
           });
+          console.log('[3:DETAIL_FOUND:CONTACT_BUTTON] Found contact button.');
 
           if (!contactButtonHandle.asElement()) {
             throw new Error('Contact button not found');
           }
           await contactButtonHandle.asElement().click();
 
-          // Wait for modal to appear (adjust selector if needed, e.g., a dialog class)
           try {
-            await page.waitForSelector('.MuiDialog-root, .modal-class', { timeout: 5000 }); // Placeholder for modal
+            await page.waitForSelector('[role="tabpanel"][id="incident-tabpanel-2"]', { timeout: 5000 });
           } catch {
-            console.warn('[3:DETAIL_WARN] Modal not detected; proceeding anyway.');
+            console.warn('[3:DETAIL_WARN] Contact tab not detected; proceeding anyway.');
           }
 
           await new Promise(resolve => setTimeout(resolve, 3000));
@@ -175,7 +177,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           try {
             const contactResp = await page.waitForResponse(r =>
               r.url().includes(`/api/incident/${id}/contact`) && 
-              r.status() === 200 &&
+              (r.status() === 200 || r.status() === 304) &&
               r.request().method() === 'GET'
             , { timeout: 120000 });
             const contactJSON = await contactResp.json();
@@ -253,3 +255,4 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     await browser.close();
   }
 })();
+```
