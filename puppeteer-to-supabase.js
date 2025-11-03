@@ -1,4 +1,4 @@
-// Version: 3
+// Version: 4
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -137,7 +137,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         );
         const assessJSON = await assessResp.json();
         const assess = assessJSON.assessments || [];
-
+        console.log('[3:DETAIL_FOUND:ASSESS] Found assessments:', assess);
         const commentsResp = await page.waitForResponse(r => 
           r.url().includes(`/api/incident/${id}/comments`)
         );
@@ -165,7 +165,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
         const contactResp = await page.waitForResponse(r =>
           r.url().includes(`/api/incident/${id}/contact`) && 
-          r.status() === 200 &&
+          r.status() === 304 &&
           r.request().method() === 'GET'
         , { timeout: 120000 }); // Increased timeout
         const contactJSON = await contactResp.json();
