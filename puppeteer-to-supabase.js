@@ -41,7 +41,8 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--single-process',
-      '--no-zygote'
+      '--no-zygote',
+      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     ],
     defaultViewport: { width: 1280, height: 800 },
     ignoreHTTPSErrors: true
@@ -77,13 +78,24 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       await page.click('button[type="submit"]');
       console.log('Submit clicked. Waiting for login confirmation...');
 
-      // Wait for the avatar image to confirm login (post-login indicator)
-      const avatarSelector = 'img[src="/assets/placeholders/user.png"][alt="Placeholder avatar"]';
-      await page.waitForSelector(avatarSelector, { timeout: 60000 });
-      console.log('Login successful: Avatar selector found.');
+      // Wait for the login form to disappear (indicating successful redirect)
+      await page.waitForFunction(() => !document.querySelector('input[type="email"]'), { timeout: 60000 });
+      console.log('Login successful: Login form disappeared.');
 
-      // Additional check: Log current URL after login
+      // Additional delay to ensure dashboard loads
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Log current URL and check for error messages (e.g., Material-UI alert)
       console.log('Post-login URL:', await page.url());
+      const errorMsg = await page.evaluate(() => {
+        const errorEl = document.querySelector('.MuiAlert-message') || document.querySelector('[role="alert"]');
+        return errorEl ? errorEl.textContent.trim() : 'No error message found';
+      });
+      console.log('Potential error message:', errorMsg);
+
+      if (errorMsg !== 'No error message found') {
+        throw new Error(`Login error: ${errorMsg}`);
+      }
     });
 
     // ---------- 2. LOAD LIST (First page only) ----------
@@ -244,7 +256,12 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
     }
   } catch (err) {
     console.error('Script failed:', err);
-    // Optional: await page.screenshot({ path: 'error-screenshot.png' });
+    // Optional: Log page content on error
+    if (page) {
+      const pageContent = await page.content();
+      console.log('Page content on error:', pageContent.substring(0, 1000)); // Truncated
+    }
+    // await page.screenshot({ path: 'error-screenshot.png' });
   } finally {
     console.log('Closing browser...');
     await browser.close();
