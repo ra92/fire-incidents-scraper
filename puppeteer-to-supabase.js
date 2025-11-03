@@ -49,6 +49,7 @@
     const masterPromise = page.waitForResponse(r => 
         r.url().includes('/api/incident') && 
         r.status() === 200 && 
+        r.request().method() === 'GET' &&
         !r.url().includes('comments') && 
         !r.url().includes('contact')
     );
@@ -106,11 +107,13 @@
             throw new Error('Contact button not found');
           }
           await contactButton.asElement().click();
-
-        // Wait for contact API to load
-        const contactResp = await page.waitForResponse(r =>
-        r.url().includes(`/api/incident/${id}/contact`) && r.status() === 200
-        );
+          await page.waitForTimeout(1000);
+          
+          const contactResp = await page.waitForResponse(r =>
+            r.url().includes(`/api/incident/${id}/contact`) && 
+            r.status() === 200 &&
+            r.request().method() === 'GET'
+          );
         const contactJSON = await contactResp.json();
         const contact = contactJSON.contactNotes || [];
 
