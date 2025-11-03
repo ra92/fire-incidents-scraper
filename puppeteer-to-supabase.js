@@ -86,7 +86,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       console.log('Post-login URL:', await page.url());
     });
 
-    // ---------- 2. LOAD LIST & HANDLE PAGINATION ----------
+    // ---------- 2. LOAD LIST (First page only) ----------
     console.log('Loading incident list...');
     const allIncidents = [];
 
@@ -116,41 +116,9 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
       return incidents;
     }
 
-    // Get initial page incidents
-    let currentIncidents = await fetchCurrentPageIncidents();
+    // Get first page incidents only
+    const currentIncidents = await fetchCurrentPageIncidents();
     allIncidents.push(...currentIncidents);
-
-    // Determine total pages (evaluate pagination)
-    console.log('Evaluating total pages...');
-    const totalPages = await page.evaluate(() => {
-      const pageItems = document.querySelectorAll('.MuiPaginationItem-page');
-      return pageItems.length; // Assumes pages are numbered 1 to N without ellipsis
-    });
-    console.log(`Detected ${totalPages} pages`);
-
-    // Loop through pages 2 to totalPages
-    for (let pageNum = 2; pageNum <= totalPages; pageNum++) {
-      await withRetry(async () => {
-        console.log(`Switching to page ${pageNum}...`);
-        // Target and click the next page button
-        const nextSelector = `button.MuiPaginationItem-page[aria-label="page ${pageNum}"]`;
-        await page.waitForSelector(nextSelector, { timeout: 20000 });
-        const nextButton = await page.$(nextSelector);
-        if (nextButton) {
-          await nextButton.click();
-          console.log(`Clicked page ${pageNum} button.`);
-          // Wait for page to load (e.g., new API call)
-          await page.waitForSelector('.some-incident-list-selector', { timeout: 30000 }); // Replace with a selector that indicates list refresh, e.g., a table or list class
-          console.log(`Page ${pageNum} loaded.`);
-        } else {
-          throw new Error(`Page ${pageNum} button not found`);
-        }
-      });
-
-      // Fetch incidents from this page
-      currentIncidents = await fetchCurrentPageIncidents();
-      allIncidents.push(...currentIncidents);
-    }
 
     console.log(`Total incidents found: ${allIncidents.length}`);
 
@@ -199,3 +167,87 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           );
         });
 
+        if (!contactButtonHandle.asElement()) {
+          throw new Error('Contact button not found');
+        }
+        await contactButtonHandle.asElement().click();
+        console.log('Contact button clicked.');
+        // Optional delay if needed for modal/load
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const contactResp = await page.waitForResponse(r =>
+          r.url().includes(`/api/incident/${id}/contact`) && 
+          r.status() === 200 &&
+          r.request().method() === 'GET'
+        );
+        const contactJSON = await contactResp.json();
+        const contact = contactJSON.contactNotes || [];
+        console.log('Contact: ' + JSON.stringify(contact));
+
+        // ----- Parse address parts -----
+        const addrParts = (inc.addressRaw || '').split(', ');
+        const city = inc.cityName || addrParts[1] || '';
+        const zip = addrParts[2] ? addrParts[2].split(' ')[1] : '';
+
+        // ----- Extract phone & owner from searchableContent -----
+        const phoneMatch = (inc.searchableContent || '').match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g) || [];
+        const ownerMatch = (inc.searchableContent || '').match(/\[CONTACT\][^/]+\/([^/]+)/i);
+        const ownerName = ownerMatch ? ownerMatch[1].trim() : '';
+
+        // ----- Build row matching your Supabase schema -----
+        rows.push({
+          incident_id: id,
+          preset_label: inc.presetLabel || null,
+          incident_type: inc.incidentTypeName || null,
+          structure_type: inc.structureTypeName || null,
+          address: inc.addressRaw || null,
+          street_address: inc.streetAddress || null,
+          city,
+          state: 'AZ',
+          zipcode: zip,
+          county: inc.countyShortName || null,
+          latitude: inc.latitude ? inc.latitude.toString() : null,
+          longitude: inc.longitude ? inc.longitude.toString() : null,
+          reported_at: inc.createdAt || null,
+          sla_due: null, // not in API – set later
+          ai_score: inc.commentCount > 3 ? 95 : (inc.commentCount > 1 ? 80 : 60),
+          assigned_agent: '',
+          contractor: '',
+          commission_pct: null,
+          owner_name: (assess.assessments?.[0]?.ownerInfo?.name + ' / ' + assess.assessments?.[0]?.lastSale?.buyer) || ownerName || null,
+          phone: phoneMatch[0] || 
+                  (contact.contactNotes?.[0]?.contact ? 
+                  contact.contactNotes[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
+          damage_description: inc.searchableContent ? inc.searchableContent.substring(0, 300) : null,
+          family_note: inc.paged ? 'PAGED - Urgent Follow-Up' : 'Not Paged',
+          description: inc.searchableContent ? inc.searchableContent.substring(0, 500) : null,
+          stage: 'New Alert'
+        });
+        console.log(`Row built for incident ${id}.`);
+      });
+    }
+
+    // ---------- 4. UPSERT TO SUPABASE ----------
+    if (rows.length > 0) {
+      console.log(`Upserting ${rows.length} rows to Supabase...`);
+      const { error } = await supabase
+        .from('incidents')
+        .upsert(rows, { onConflict: 'incident_id' });
+
+      if (error) {
+        console.error('Supabase error:', error);
+      } else {
+        console.log(`Upserted ${rows.length} rows successfully.`);
+      }
+    } else {
+      console.log('No rows to upsert.');
+    }
+  } catch (err) {
+    console.error('Script failed:', err);
+    // Optional: await page.screenshot({ path: 'error-screenshot.png' });
+  } finally {
+    console.log('Closing browser...');
+    await browser.close();
+    console.log('Browser closed.');
+  }
+})();
