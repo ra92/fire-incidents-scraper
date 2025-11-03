@@ -1,0 +1,12 @@
+{
+  "name": "fire-incidents",
+  "version": "1.0.0",
+  "main": "puppeteer-to-supabase.js",
+  "scripts": {
+    "start": "node puppeteer-to-supabase.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
