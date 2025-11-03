@@ -93,13 +93,11 @@
 
         // 3c – contact
         // Contact button
-        await Promise.all([
-            page.click('button:has-text("Contact")'),
-            page.waitForNavigation({ waitUntil: 'networkidle0' })
-        ]);
+        await page.click('button >> text=Contact');
 
-        const contactResp = await page.waitForResponse(r => 
-        r.url().includes(`/api/incident/${id}/contact`)
+        // Wait for contact API to load
+        const contactResp = await page.waitForResponse(r =>
+        r.url().includes(`/api/incident/${id}/contact`) && r.status() === 200
         );
         const contactJSON = await contactResp.json();
         const contact = contactJSON.contactNotes || [];
