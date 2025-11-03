@@ -71,11 +71,12 @@
         // 3a – assessment / property
         await page.goto(LIST_URL + `incident?incidentId=${id}`);
         const assessResp = await page.waitForResponse(r => 
-        r.url().includes(`/api/incident/${id}`) && 
-        !r.url().includes('comments') && 
-        !r.url().includes('contact')
+            r.url().includes(`/api/assessment/incident/${id}`) && 
+            !r.url().includes('comments') && 
+            !r.url().includes('contact')
         );
-        const assess = await assessResp.json();
+        const assessJSON = await assessResp.json();
+        const assess = assessJSON.assessments || [];
 
         // 3b – comments
         const commentsResp = await page.waitForResponse(r => 
