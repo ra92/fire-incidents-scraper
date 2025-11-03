@@ -106,7 +106,7 @@
             throw new Error('Contact button not found');
           }
           await contactButton.asElement().click();
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        //   await new Promise(resolve => setTimeout(resolve, 1000));
           
           const contactResp = await page.waitForResponse(r =>
             r.url().includes(`/api/incident/${id}/contact`) && 
