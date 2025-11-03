@@ -1,4 +1,4 @@
-// Version: 2
+// Version: 3
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -56,7 +56,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
   try {
     // ---------- 1. LOGIN ----------
-    console.log('Logging in...');
+    console.log('[1:LOGIN_START] Logging in...');
     await withRetry(async () => {
       await page.goto('https://client.firenotification.com/auth/sign-in', { waitUntil: 'domcontentloaded' });
 
@@ -88,14 +88,14 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
           page.waitForSelector(avatarSelector, { timeout: 30000 }),
           page.waitForSelector(paginationSelector, { timeout: 30000 })
         ]);
-        console.log('Login successful.');
+        console.log('[1:LOGIN_SUCCESS] Login successful.');
       } catch (err) {
         throw new Error('Login failed: No dashboard indicator found.');
       }
     });
 
     // ---------- 2. LOAD LIST ----------
-    console.log('Loading incident list...');
+    console.log('[2:LIST_START] Loading incident list...');
     const allIncidents = [];
 
     async function fetchCurrentPageIncidents() {
@@ -110,10 +110,10 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         const masterResp = await masterPromise;
         const masterJson = await masterResp.json();
         const incidents = masterJson.incidents || [];
-        console.log(`Found ${incidents.length} incidents.`);
+        console.log(`[2:LIST_FOUND] Found ${incidents.length} incidents.`);
         return incidents;
       } catch (err) {
-        console.error('Error fetching incidents:', err);
+        console.error('[2:LIST_ERROR] Error fetching incidents:', err);
         return [];
       }
     }
@@ -126,7 +126,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
     for (const inc of allIncidents) {
       const id = inc.IncidentId;
-      console.log(`Processing ${id}...`);
+      console.log(`[3:DETAIL_START:${id}] Processing ${id}...`);
 
       await withRetry(async () => {
         await page.goto(LIST_URL + `incident?incidentId=${id}`, { waitUntil: 'domcontentloaded' });
@@ -161,13 +161,13 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         }
         await contactButtonHandle.asElement().click();
 
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Increased delay
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Increased delay
 
         const contactResp = await page.waitForResponse(r =>
           r.url().includes(`/api/incident/${id}/contact`) && 
           r.status() === 200 &&
           r.request().method() === 'GET'
-        , { timeout: 90000 }); // Increased timeout
+        , { timeout: 120000 }); // Increased timeout
         const contactJSON = await contactResp.json();
         const contact = contactJSON.contactNotes || [];
 
@@ -212,27 +212,27 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
 
     // ---------- 4. UPSERT TO SUPABASE ----------
     if (rows.length > 0) {
-      console.log(`Upserting ${rows.length} rows...`);
+      console.log(`[4:UPSERT_START] Upserting ${rows.length} rows...`);
       const { error } = await supabase
         .from('incidents')
         .upsert(rows, { onConflict: 'incident_id' });
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('[4:UPSERT_ERROR] Supabase error:', error);
       } else {
-        console.log('Upsert successful.');
+        console.log('[4:UPSERT_SUCCESS] Upsert successful.');
       }
     } else {
-      console.log('No rows to upsert.');
+      console.log('[4:UPSERT_NONE] No rows to upsert.');
     }
   } catch (err) {
-    console.error('Script failed:', err);
+    console.error('[ERROR] Script failed:', err);
     if (page) {
       const pageContent = await page.content();
-      console.log('Page content on error:', pageContent.substring(0, 1000));
+      console.log('[ERROR_PAGE] Page content on error:', pageContent.substring(0, 1000));
     }
   } finally {
-    console.log('Closing browser...');
+    console.log('[FINAL] Closing browser...');
     await browser.close();
   }
 })();
