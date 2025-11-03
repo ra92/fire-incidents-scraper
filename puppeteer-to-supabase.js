@@ -1,4 +1,4 @@
-// Version: 5
+// Version: 6
 // ---------------------------------------------------------------
 // puppeteer-to-supabase.js
 // ---------------------------------------------------------------
@@ -152,8 +152,7 @@ async function withRetry(fn, maxRetries = 3, delayMs = 2000) {
         const contactButtonHandle = await page.evaluateHandle(() => {
           const buttons = Array.from(document.querySelectorAll('button'));
           return buttons.find(btn => 
-            btn.textContent.includes('Contact') && 
-            btn.querySelector('.MuiBadge-root')
+            btn.textContent.includes('Contact')
           );
         });
         console.log('[3:DETAIL_FOUND:CONTACT_BUTTON] Found contact button:', contactButtonHandle);
