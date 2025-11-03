@@ -92,10 +92,19 @@
         console.log('Full Comments: ' + comments);
 
         // 3c – contact
+        // Contact button
+        await Promise.all([
+            page.click('button:has-text("Contact")'),
+            page.waitForNavigation({ waitUntil: 'networkidle0' })
+        ]);
+
         const contactResp = await page.waitForResponse(r => 
         r.url().includes(`/api/incident/${id}/contact`)
         );
-        const contact = await contactResp.json();
+        const contactJSON = await contactResp.json();
+        const contact = contactJSON.contactNotes || [];
+
+        console.log('Contact: ' + contact);
 
         // ----- Parse address parts -----
         const addrParts = (inc.addressRaw || '').split(', ');
