@@ -148,7 +148,7 @@
         assigned_agent: '',
         contractor: '',
         commission_pct: null,
-        owner_name: ownerName || (assess.assessments?.[0]?.ownerInfo?.name) || null,
+        owner_name: (assess.assessments?.[0]?.ownerInfo?.name + ' / ' + assess.assessments?.[0]?.lastSale?.buyer) || ownerName || null,
         phone: phoneMatch[0] || 
                 (contact.contactNotes?.[0]?.contact ? 
                 contact.contactNotes[0].contact.match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] : null) || null,
