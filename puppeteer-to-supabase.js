@@ -57,7 +57,7 @@
         r.status() === 200
     );
 
-    // await page.goto(LIST_URL);
+    await page.goto(LIST_URL);
     const masterResp = await masterPromise;
     const masterJson = await masterResp.json();
     const incidents = masterJson.incidents || [];
